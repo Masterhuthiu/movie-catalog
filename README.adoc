@@ -155,49 +155,109 @@ This microservice demonstrates:
 
 ➡️ Suitable as a **backend portfolio project** for *Java Backend / Microservices / Cloud / DevOps roles*.
 
-= PART II:
+= PART II: Cloud-Native Orchestration & CI/CD
+
 == ☸️ Kubernetes & OpenShift (MicroShift) Deployment
 
-Beyond local containers, this service is fully architected for **Cloud-Native orchestration** on Kubernetes and OpenShift.
+Beyond local containers, this service is fully architected for **Cloud-Native orchestration**, optimized for resource-constrained environments like **MicroShift**.
 
-=== 1. Containerization & Image Management
-The application is packaged as a lightweight OCI-compliant image and hosted on an enterprise registry.
+=== 1. Containerization & Image Strategy
+The application is packaged as a lightweight, OCI-compliant image using a daemonless build approach.
 
-[source,bash]
-----
-# Build and Push image to Quay.io
-./mvnw -Pprod verify jib:build -Djib.to.image=quay.io/your-username/movie-catalog-service:v1
-----
+* **Advanced Build Tooling**: 
+Leverages **Google Jib** to build optimized image layers trực tiếp từ Maven, bypassing the need for a Docker daemon and reducing the attack surface.
+* **Registry Management**: 
+Hosted on **Quay.io** with integrated **Clair security scanning** to ensure all production layers are free of critical vulnerabilities.
 
 === 2. Infrastructure as Code (IaC) - K8s Manifests
-I have developed custom Kubernetes manifests to manage the deployment lifecycle, including:
+I developed custom Kubernetes manifests to manage the deployment lifecycle with a focus on stability and configuration decoupling.
 
-- **Deployment**: Configured with `RollingUpdate` strategy and resource limits.
-- **Service**: Internal Cluster-IP for zero-config service discovery.
-- **Environment Injection**: Decoupling configuration from code using K8s environment variables.
+* **Deployment Strategy**: 
+Utilizes `RollingUpdate` to ensure zero-downtime deployments.
+* **Environment Injection**: 
+Decouples infrastructure from code by injecting critical variables via K8s Environment Variables.
+* **Resource Constraints**: 
+Defined CPU/Memory requests and limits to ensure cluster stability.
 
 [source,yaml]
 ----
-# Strategic configuration for MongoDB connectivity in K8s
+# Example Backend Environment Configuration
 containers:
-- name: movie-app
-  image: quay.io/your-username/movie-catalog-service:v1
-  env:
-  - name: SPRING_DATA_MONGODB_URI
-    value: "mongodb://mongodb.default.svc.cluster.local:27017/movieCatalogService"
+  - name: movie-app
+    image: quay.io/cosa199212/movie-catalog-service:latest
+    env:
+      - name: SPRING_DATA_MONGODB_URI
+        value: "mongodb://mongodb:27017/sample_mflix"
+      - name: SPRING_CLOUD_CONSUL_HOST
+        value: "consul"
 ----
 
-=== 3. Deployment Workflow on MicroShift
-The service is deployed using `oc` (OpenShift CLI), ensuring seamless integration with the cluster's internal networking.
+=== 3. High-Volume Data Provisioning (23K+ Documents)
+A standout technical achievement was the successful management of a large-scale dataset within a containerized environment.
 
+* **Image-Layer Persistence**: 
+Utilized a pre-seeded MongoDB image (`mongodb-full-data`) containing the **sample_mflix** dataset with **23,539+ documents**.
+* **Volume Masking Resolution**: 
+Identified and resolved a conflict where K8s default volume mounts overrode internal image data. By bypassing external mounts for this specific dev-tier, I achieved **instant-ready data availability**.
+* **Complex Data Mapping**: 
+Successfully mapped nested NoSQL structures (e.g., `imdb.rating`, `imdb.votes`) to Java objects using Spring Data `@Field` annotations.
+
+
+
+=== 4. Automated CI/CD Pipeline (GitHub Actions)
+Implemented a fully automated pipeline to streamline the transition from code to production.
+
+* **Continuous Integration**: 
+Automated Maven builds and unit testing on every `push` or `pull_request`.
+* **Continuous Deployment**: 
+Seamlessly pushes verified OCI images to Quay.io using GitHub Secrets for secure authentication.
+
+[source,yaml]
+----
+# .github/workflows/main.yml
+name: Movie Catalog CI/CD
+on: [push]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Build & Push to Quay.io
+        run: |
+          ./mvnw -Pprod verify jib:build \
+            -Djib.to.image=quay.io/cosa199212/movie-catalog-service:latest \
+            -Djib.to.auth.username=${{ secrets.QUAY_USERNAME }} \
+            -Djib.to.auth.password=${{ secrets.QUAY_PASSWORD }}
+----
+
+
+
+=== 5. Cluster Observability & Troubleshooting
+Expertise in maintaining system health through advanced CLI tooling:
+
+* **Internal Inspection**: 
+Used `oc debug` to verify the **WiredTiger** storage engine paths inside the running Pod.
+* **Streamed Data Injection**: 
+Mastered the use of PowerShell pipes to perform large-scale JSON imports into the cluster:
++
 [source,powershell]
 ----
-# Apply backend manifests
-oc apply -f K8S/movie-catalog-deployment.yml -n default
-
-# Verify connectivity with the MongoDB Pod
-oc logs -f deployment/movie-catalog-service -n default | grep "Connected to MongoDB"
+Get-Content movies.json -Raw | oc exec -i <pod-name> -- mongoimport --jsonArray
 ----
+* **Service Discovery**: 
+Integrated with **Consul** for dynamic service lookups and health monitoring.
 
-=== 4. Service Discovery: K8s DNS vs. Consul
-While the application supports **Consul** for service discovery in hybrid environments, it is optimized to use **Kubernetes Native Service Discovery (Kube-DNS)** when deployed in the cluster. This reduces architectural overhead by utilizing the cluster's built-in DNS resolution.
+---
+
+== 📌 Technical Summary
+This project demonstrates a transition from a simple Spring Boot app to a **full-scale Cloud-Native solution**. It showcases proficiency in:
+
+* **Java Microservices**: Spring Boot 3, JHipster 8
+* **NoSQL Architecture**: MongoDB Atlas & Local Optimization
+* **DevOps Patterns**: CI/CD, GitHub Actions, Quay.io
+* **Cloud Orchestration**: Kubernetes/OpenShift (MicroShift) CLI, Manifest management

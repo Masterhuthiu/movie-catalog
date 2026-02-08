@@ -1,8 +1,9 @@
-# K8S/movie-catalog-deployment.yml
+# --- PHẦN 1: DEPLOYMENT (Cấu hình ứng dụng) ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: movie-catalog-service
+  namespace: default
 spec:
   replicas: 1
   selector:
@@ -15,11 +16,43 @@ spec:
     spec:
       containers:
         - name: movie-app
-          # THAY THẾ bằng tên Docker Hub của bạn
           image: masterhuthiu/movie-catalog-service:latest
-          imagePullPolicy: Always # Ép K8s luôn kéo bản mới nhất từ Docker Hub
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8081
           env:
             - name: SPRING_DATA_MONGODB_URI
-              value: "mongodb://mongodb:27017/movieCatalogService"
-            - name: SPRING_CLOUD_CONSUL_ENABLED
-              value: "false" # Tắt Consul vì đã có K8s DNS
+              value: 'mongodb://mongodb:27017/sample_mflix'
+            # Cấu hình kết nối Consul để chuẩn bị chạy Frontend
+            - name: SPRING_CLOUD_CONSUL_HOST
+              value: 'consul'
+            - name: SPRING_CLOUD_CONSUL_PORT
+              value: '8500'
+          # Cấu hình kiểm tra sức khỏe (Probes) nằm trong Container
+          readinessProbe:
+            httpGet:
+              path: /management/health/readiness
+              port: 8081
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /management/health/liveness
+              port: 8081
+            initialDelaySeconds: 120 # Tăng thêm để Java khởi động kịp
+            periodSeconds: 20
+---
+# --- PHẦN 2: SERVICE (Cổng kết nối nội bộ) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: movie-catalog-service
+  namespace: default
+spec:
+  selector:
+    app: movie-catalog-service
+  ports:
+    - protocol: TCP
+      port: 8081 # Cổng của Service
+      targetPort: 8081 # Cổng của App
+  type: ClusterIP
